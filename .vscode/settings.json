@@ -1,0 +1,11 @@
+{
+    "makefile.configureOnOpen": false ,
+    "commentAnchors.tags.list": [
+    {
+        "tag": "MARK",
+        "iconColor": "#3498DB",
+        "highlightColor": "#3498DB",
+        "scope": "file"
+    }
+]
+}
