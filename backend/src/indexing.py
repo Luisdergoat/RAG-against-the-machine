@@ -108,14 +108,16 @@ def python_indexer(file_path: str, max_chunk_size: int) -> list:
         print(f"Fehler beim Lesen der Datei: {file_path}")
         return []
 
+    chunks = []
     starts = line_starts(text)
     units = python_units(text, starts)
     units = split_oversized(units, starts, max_chunk_size)
     units = pack_units(units, max_chunk_size)
     for start, end in units:
-            return Chunk(
+        chunks.append(Chunk(
                 file_path=str(file_path),
                 first_character_index=start,
                 last_character_index=end,
                 text=text[start:end]
-            )
+            ))
+    return chunks

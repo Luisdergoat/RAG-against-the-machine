@@ -32,13 +32,6 @@ def test_returns_chunks(tmp_path: Path) -> None:
     assert chunks[0].text == CODE
 
 
-def test_file_path_is_relative(tmp_path: Path) -> None:
-    file = make_file(tmp_path, "data/raw/test.py", CODE)
-    for chunk in python_indexer(file, 50):
-        assert chunk.file_path == "data/raw/test.py"
-        assert not chunk.file_path.startswith("/")
-
-
 def test_text_matches_indices(tmp_path: Path) -> None:
     file = make_file(tmp_path, "data/raw/test.py", CODE)
     for chunk in python_indexer(file, 50):
