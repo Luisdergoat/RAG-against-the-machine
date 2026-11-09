@@ -1,4 +1,4 @@
-from indexing import line_starts
+from python_indexing import line_starts, python_units, split_by_lines, split_oversized, pack_units
 
 
 CODE = '''import os

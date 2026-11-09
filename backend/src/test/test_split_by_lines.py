@@ -1,5 +1,5 @@
-from indexing import (line_starts, pack_units, python_units,
-                      split_by_lines, split_oversized)
+from python_indexing import (line_starts, pack_units, python_units,
+                             split_by_lines, split_oversized)
 
 
 THREE_LINES = "aaaa\nbbbb\ncccc\n"   # 3 Zeilen à 5 Zeichen = 15

@@ -1,4 +1,5 @@
 import ast
+from pathlib import Path
 from models import Chunk
 
 
@@ -98,7 +99,8 @@ def split_oversized(units: list[tuple[int, int]], starts: list[int],
     return result
 
 
-def python_indexer(file_path: str, max_chunk_size: int) -> list:
+def python_indexer(file_path: Path, project_root: Path,
+                   max_chunk_size: int) -> list[Chunk]:
 
     try:
         with open(file_path, 'r', encoding="utf-8") as file:
@@ -108,14 +110,15 @@ def python_indexer(file_path: str, max_chunk_size: int) -> list:
         print(f"Fehler beim Lesen der Datei: {file_path}")
         return []
 
-    chunks = []
+    relative_path = Path(file_path).relative_to(project_root).as_posix()
+    chunks: list[Chunk] = []
     starts = line_starts(text)
     units = python_units(text, starts)
     units = split_oversized(units, starts, max_chunk_size)
     units = pack_units(units, max_chunk_size)
     for start, end in units:
         chunks.append(Chunk(
-                file_path=str(file_path),
+                file_path=relative_path,
                 first_character_index=start,
                 last_character_index=end,
                 text=text[start:end]
