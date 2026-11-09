@@ -7,5 +7,6 @@
         "highlightColor": "#3498DB",
         "scope": "file"
     }
-]
+],
+"cmake.sourceDirectory": "/Users/luisunsold/42/RAG-against-the-machine/data/raw/vllm-0.10.1"
 }
