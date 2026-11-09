@@ -18,7 +18,6 @@ def test_max_80() -> None:
 
 
 def test_unit_too_big_goes_through() -> None:
-    # foo (75 Zeichen) ist allein größer als 50 -> vorerst trotzdem eigener Chunk
     assert pack_units(UNITS, 50) == [(0, 18), (18, 93), (93, 140)]
 
 

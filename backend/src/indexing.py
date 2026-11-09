@@ -1,4 +1,5 @@
 import ast
+from models import Chunk
 
 
 def count_letters(text: str) -> int:
@@ -33,7 +34,10 @@ def python_units(text: str, starts: list[int]) -> list[tuple[int, int]]:
     return units
 
 
-def pack_units(units: list[tuple[int, int]], max_chunk_size: int) -> list[tuple[int, int]]:
+def pack_units(
+    units: list[tuple[int, int]], max_chunk_size: int
+) -> list[tuple[int, int]]:
+
     chunks = []
     current_chunk = []
     current_chunk_size = 0
@@ -55,23 +59,63 @@ def pack_units(units: list[tuple[int, int]], max_chunk_size: int) -> list[tuple[
     return chunks
 
 
-def python_indexer(file_path: str, max_chunk_size: int) -> list:
-
-    with open(file_path, 'r', encoding="utf-8") as file:
-        try:
-            tree = ast.parse(file.read())
-        except SyntaxError as e:
-            print(f"Syntax error in file {file_path}: {e}")
-            return []
-
-        chunks = []
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                chunks.append(ast.get_source_segment(open(file_path).read(), node))
-
-        return chunks
-
-
 def line_starts(text: str) -> list:
     text = text.splitlines(keepends=True)
     return [sum(len(line) for line in text[:i]) for i in range(len(text) + 1)]
+
+
+def split_by_lines(start: int, end: int, starts: list[int],
+                   max_chunk_size: int) -> list[tuple[int, int]]:
+    positions = [start]
+    for pos in starts:
+        if start < pos < end:
+            positions.append(pos)
+    positions.append(end)
+
+    line_units: list[tuple[int, int]] = []
+    for i in range(len(positions) - 1):
+        line_start = positions[i]
+        line_end = positions[i + 1]
+        if line_end - line_start <= max_chunk_size:
+            line_units.append((line_start, line_end))
+        else:
+            for piece in range(line_start, line_end, max_chunk_size):
+                line_units.append(
+                    (piece, min(piece + max_chunk_size, line_end)))
+
+    return pack_units(line_units, max_chunk_size)
+
+
+def split_oversized(units: list[tuple[int, int]], starts: list[int],
+                    max_chunk_size: int) -> list[tuple[int, int]]:
+
+    result: list[tuple[int, int]] = []
+    for start, end in units:
+        if end - start > max_chunk_size:
+            result.extend(split_by_lines(start, end, starts, max_chunk_size))
+        else:
+            result.append((start, end))
+    return result
+
+
+def python_indexer(file_path: str, max_chunk_size: int) -> list:
+
+    try:
+        with open(file_path, 'r', encoding="utf-8") as file:
+            text = file.read()
+
+    except (UnicodeDecodeError, OSError):
+        print(f"Fehler beim Lesen der Datei: {file_path}")
+        return []
+
+    starts = line_starts(text)
+    units = python_units(text, starts)
+    units = split_oversized(units, starts, max_chunk_size)
+    units = pack_units(units, max_chunk_size)
+    for start, end in units:
+            return Chunk(
+                file_path=str(file_path),
+                first_character_index=start,
+                last_character_index=end,
+                text=text[start:end]
+            )
