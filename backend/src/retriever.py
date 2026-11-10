@@ -16,7 +16,21 @@ class Retriever():
         query_tokens = tokenize(query)
         documents, scores = self.bm25.retrieve([query_tokens], k=k)
         print(f"Retrieved {len(documents)} documents for query '{query}'")
+        print(f"Documents: {documents}")
         print(f"Scores: {scores}")
+
+        found_chunk = []
+        for doc_id, score in zip(documents[0], scores[0]):
+            chunk = self.chunks[doc_id]
+            found_chunk.append(MinimalSource(
+                file_path=chunk.file_path,
+                first_character_index=chunk.first_character_index,
+                last_character_index=chunk.last_character_index,
+                text=chunk.text,
+                score=score
+            ))
+            json_string = json.dumps(found_chunk[0].model_dump(), indent=2)
+            print(f"\n{json_string}")
 
 
 
@@ -25,4 +39,4 @@ class Retriever():
 
 if __name__ == "__main__":
     retriever = Retriever(Path(__file__).resolve().parent.parent / "data" / "processed")
-    retriever.search("What is the purpose of the tokenize function?", 5)
+    retriever.search("What is the purpose of the tokenize function?", 3)

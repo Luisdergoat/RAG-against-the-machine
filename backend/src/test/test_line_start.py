@@ -1,4 +1,4 @@
-from python_indexing import line_starts, python_units, split_by_lines, split_oversized, pack_units
+from backend.src.test.test_line_start import line_starts
 
 
 CODE = '''import os

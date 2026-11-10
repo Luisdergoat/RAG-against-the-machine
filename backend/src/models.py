@@ -40,6 +40,7 @@ class MinimalAnswer(MinimalSearchResults):
 
 class StudentSearchResults(BaseModel):
     search_results: list[MinimalSearchResults]
+    k: int
 
 
 class StudentSearchResultsAndAnswer(BaseModel):
