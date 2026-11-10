@@ -1,36 +1,5 @@
-from pydantic import BaseModel
-
-
-class MinimalSource(BaseModel):
-    pass
-
-
-class UnansweredQuestion(BaseModel):
-    pass
-
-
-class AnsweredQuestion(BaseModel):
-    pass
-
-
-class RagDataset(BaseModel):
-    pass
-
-
-class MinimalSearchResult(BaseModel):
-    pass
-
-
-class MinimalAnswer(BaseModel):
-    pass
-
-
-class StudentSearchResults(BaseModel):
-    pass
-
-
-class StudentSearchResultsAndAnswer(BaseModel):
-    pass
+from pydantic import BaseModel, Field
+import uuid
 
 
 class Chunk(BaseModel):
@@ -38,3 +7,41 @@ class Chunk(BaseModel):
     first_character_index: int
     last_character_index: int
     text: str
+
+
+class MinimalSource(BaseModel):
+    file_path: str
+    first_character_index: int
+    last_character_index: int
+
+
+class UnansweredQuestion(BaseModel):
+    question_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+
+
+class AnsweredQuestion(UnansweredQuestion):
+    sources: list[MinimalSource]
+    answer: str
+
+
+class RagDataset(BaseModel):
+    rag_question: list[AnsweredQuestion | UnansweredQuestion]
+
+
+class MinimalSearchResults(BaseModel):
+    question_id: str
+    question: str
+    retrieved_sources: list[MinimalSource]
+
+
+class MinimalAnswer(MinimalSearchResults):
+    answer: str
+
+
+class StudentSearchResults(BaseModel):
+    search_results: list[MinimalSearchResults]
+
+
+class StudentSearchResultsAndAnswer(BaseModel):
+    search_results: list[MinimalAnswer]
+    k: int

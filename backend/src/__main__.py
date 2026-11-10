@@ -3,6 +3,10 @@ from pathlib import Path
 from python_indexing import python_indexer
 from markdown_indexing import markdown_indexer
 from models import Chunk
+from tokenizer import tokenize
+from tqdm import tqdm
+import bm25s
+import json
 
 
 class CLI:
@@ -11,6 +15,7 @@ class CLI:
         self.datasets = self.project_root / 'data'
         self.indexed_python_files = []
         self.indexed_markdown_files = []
+        self.processed_dir = Path(__file__).resolve().parent.parent / "data" / "processed"
 
     def index(self, max_chunk_size: int = 2000) -> None:
         self.datasets = Path(self.datasets).resolve() / 'raw'
@@ -24,15 +29,24 @@ class CLI:
         print(f"Python files {len(self.indexed_python_files)}")
         print(f"Markdown files {len(self.indexed_markdown_files)}")
         all_chunks: list[Chunk] = []
-        for file in self.indexed_python_files:
-            all_chunks.extend(
-                python_indexer(file, self.project_root, max_chunk_size))
-        for file in self.indexed_markdown_files:
-            all_chunks.extend(
-                markdown_indexer(file, self.project_root, max_chunk_size))
-        print(f"Indexed {len(all_chunks)} chunks")
-        if all_chunks:
-            print(f"Example path: {all_chunks[0].file_path}")
+        for file in tqdm(self.indexed_python_files, desc="Python files"):
+            all_chunks.extend(python_indexer(file, self.project_root, max_chunk_size))
+
+        for file in tqdm(self.indexed_markdown_files, desc="Markdown files"):
+            all_chunks.extend(markdown_indexer(file, self.project_root, max_chunk_size))
+        corpus_tokens = []
+        for chunks in tqdm(all_chunks, desc="Tokenizing"):
+            corpus_tokens.append(tokenize(chunks.text))
+
+        self.processed_dir.mkdir(exist_ok=True)
+        retriever = bm25s.BM25()
+        retriever.index(corpus_tokens)
+        retriever.save(self.processed_dir / "bm25")
+
+        with open(self.processed_dir / "chunks.json", "w", encoding="utf-8") as f:
+            json.dump([chunk.model_dump() for chunk in all_chunks], f, indent=2)
+
+        print("Ingestion complete! Indices saved under data/processed/")
 
     def search(self, query: str, k: int) -> None:
         print(f"The Question was: {query} with the number {k}")
