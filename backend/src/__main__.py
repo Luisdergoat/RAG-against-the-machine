@@ -2,9 +2,10 @@ from fire import Fire
 from pathlib import Path
 from python_indexing import python_indexer
 from markdown_indexing import markdown_indexer
-from models import Chunk
+from models import Chunk, MinimalSearchResults, StudentSearchResults
 from tokenizer import tokenize
 from tqdm import tqdm
+from retriever import Retriever
 import bm25s
 import json
 
@@ -49,7 +50,41 @@ class CLI:
         print("Ingestion complete! Indices saved under data/processed/")
 
     def search(self, query: str, k: int) -> None:
-        print(f"The Question was: {query} with the number {k}")
+        retriever = Retriever(self.processed_dir)
+        try:
+            results = retriever.search(query, k)
+            for result in results:
+                print(json.dumps(result.model_dump(), indent=2))
+        except Exception as e:
+            print(f"Error during search: {e}")
+
+    def search_dataset(self, dataset_path: Path, save_directory: Path, k: int = 3) -> None:
+        with open(dataset_path, "r", encoding="utf-8") as f:
+            dataset = json.load(f)
+            minimal_search_result = []
+            retriever = Retriever(self.processed_dir)
+            for entry in dataset["rag_questions"]:
+                query = entry["question"]
+                minimal_search_result.append(MinimalSearchResults(
+                    question_id=entry["question_id"],
+                    question=entry["question"],
+                    retrieved_sources=retriever.search(query, k)
+                ))
+            StudentSearchResults(
+                search_results=minimal_search_result,
+                k=k
+            )
+            save_directory = Path(save_directory)
+            save_directory.mkdir(parents=True, exist_ok=True)
+            with open(save_directory / "search_results.json", "w", encoding="utf-8") as f:
+                json.dump(StudentSearchResults(
+                    search_results=minimal_search_result,
+                    k=k
+                ).model_dump(), f, indent=2)
+
+    def answer(self, query: str, k: int = 3):
+        retriever = Retriever(self.processed_dir)
+        retriever.answer(query, k)
 
 
 def main():
