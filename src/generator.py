@@ -23,9 +23,14 @@ SYSTEM_PROMPT = (
 
 def read_source_text(project_root: Path, source: MinimalSource) -> str:
     """Liest den Textausschnitt einer Quelle aus ihrer Datei."""
-    with open(project_root / source.file_path, encoding="utf-8") as f:
-        text = f.read()
-    return text[source.first_character_index:source.last_character_index]
+
+    try:
+        with open(project_root / source.file_path, encoding="utf-8") as f:
+            text = f.read()
+        return text[source.first_character_index:source.last_character_index]
+    except Exception as e:
+        print(f"WARNING: Could not read {source.file_path}: {e}")
+        return ""
 
 
 def build_context(project_root: Path,
