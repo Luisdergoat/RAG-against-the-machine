@@ -60,8 +60,9 @@ class Generator:
 
         dtype = torch.float32 if self.device == "cpu" else torch.float16
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model: Any = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=dtype).to(self.device)
+        model: Any = AutoModelForCausalLM.from_pretrained(
+                        model_name, torch_dtype=dtype)
+        self.model: Any = model.to(self.device)
 
     def generate(self, context: str, query: str) -> str:
         """Erzeugt eine Antwort auf query, gestützt auf context."""
