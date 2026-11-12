@@ -8,7 +8,12 @@ install:
 run: install
 	uv run python3 $(ENTRY) $(ARGS)
 
-run-server: install
+server-setup: install
+	uv run python3 src index --max_chunk_size 2000
+	uv run python3 src search_dataset --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json --k 10 --save_directory data/output/search_results/UnansweredQuestions
+	uv run python3 src search_dataset --dataset_path data/datasets/UnansweredQuestions/dataset_code_public.json --k 10 --save_directory data/output/search_results/UnansweredQuestions
+
+run-server: server-setup
 	uv run python3 -m uvicorn $(ENTRY).server.server:app --reload
 
 debug: install

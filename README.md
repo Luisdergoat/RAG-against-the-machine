@@ -69,7 +69,7 @@ On the first `answer` call, the Qwen3-0.6B weights (~1.2 GB) are downloaded from
 **1. Build the index** (once, or after changing the chunking or tokenizer)
 
 ```bash
-uv run python -m src index --max_chunk_size 2000
+uv run python3 src index --max_chunk_size 2000
 ```
 
 **2. Search a whole dataset**
