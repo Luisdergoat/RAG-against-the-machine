@@ -6,16 +6,22 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "bm25s>=0.3.16",
+    "fastapi>=0.162.5",
     "fire>=0.7.1",
+    "flake8>=7.4.1",
+    "mypy>=2.4.0",
     "pydantic>=2.14.3",
     "rich>=15.0.0",
+    "sentence-transformers>=6.2.0",
     "torch>=2.14.1",
     "tqdm>=4.70.1",
     "transformers>=5.19.0",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [tool.mypy]
 explicit_package_bases = true
+exclude = ['\.venv', 'data']
 warn_return_any = true
 warn_unused_ignores = true
 ignore_missing_imports = true

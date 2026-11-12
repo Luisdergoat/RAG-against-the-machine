@@ -4,3 +4,5 @@ __pycache__/
 .mypy_cache/
 uv.lock
 data/processed
+data/output
+.pytest_cache

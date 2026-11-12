@@ -39,8 +39,8 @@ def pack_units(
     units: list[tuple[int, int]], max_chunk_size: int
 ) -> list[tuple[int, int]]:
 
-    chunks = []
-    current_chunk = []
+    chunks: list = []
+    current_chunk: list = []
     current_chunk_size = 0
 
     for start, end in units:
@@ -60,9 +60,11 @@ def pack_units(
     return chunks
 
 
-def line_starts(text: str) -> list:
-    text = text.splitlines(keepends=True)
-    return [sum(len(line) for line in text[:i]) for i in range(len(text) + 1)]
+def line_starts(text: str) -> list[int]:
+    starts = [0]
+    for line in text.splitlines(keepends=True):
+        starts.append(starts[-1] + len(line))
+    return starts
 
 
 def split_by_lines(start: int, end: int, starts: list[int],
