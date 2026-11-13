@@ -2,13 +2,16 @@
 
 # RAG against the machine
 
-> Ask a question about the vLLM codebase, get back the exact source locations and a grounded answer from a small local model.
+> Ask a question about the vLLM codebase, get back the exact source locations and a grounded answer from a small local model, in the terminal or in a browser chat.
 
 ![Python](https://img.shields.io/badge/python-3.14-blue)
 ![uv](https://img.shields.io/badge/package%20manager-uv-purple)
 ![Retrieval](https://img.shields.io/badge/retrieval-BM25-orange)
 ![Model](https://img.shields.io/badge/LLM-Qwen3--0.6B-green)
+![Bonus](https://img.shields.io/badge/bonus-local%20web%20API-pink)
 ![Lint](https://img.shields.io/badge/lint-flake8%20%7C%20mypy-lightgrey)
+
+![Chat interface](docs/chat-ui.png)
 
 ---
 
@@ -21,6 +24,7 @@
 - [Chunking strategy](#chunking-strategy)
 - [Retrieval method](#retrieval-method)
 - [Performance analysis](#performance-analysis)
+- [Bonus: local web API and chat interface](#bonus-local-web-api-and-chat-interface)
 - [Design decisions](#design-decisions)
 - [Challenges faced](#challenges-faced)
 - [Project structure](#project-structure)
@@ -42,6 +46,8 @@ This project implements a complete RAG pipeline over the **vLLM 0.10.1** reposit
 | **Generating** | Lets **Qwen/Qwen3-0.6B** write an answer that is grounded in those chunks |
 
 Retrieval quality is measured with **recall@k**. On the public datasets the system reaches **82 % recall@5 on documentation questions** and **75 % recall@5 on code questions** (required: 80 % and 50 %).
+
+As a bonus, the whole pipeline is also available through a **local web server** with a **browser chat interface**, so it can be used by something other than the CLI.
 
 ---
 
@@ -85,17 +91,17 @@ uv run python3 src search_dataset --dataset_path data/datasets/UnansweredQuestio
 **3. Evaluate your own recall@k**
 
 ```bash
-uv run python3 src evaluate --student_answer_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json --solution_path data/datasets/AnsweredQuestions/dataset_docs_public.json
+uv run python3 src evaluate --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json
 ```
 
 ```bash
-uv run python3 src evaluate --student_answer_path data/output/search_results/UnansweredQuestions/dataset_code_public.json --solution_path data/datasets/AnsweredQuestions/dataset_code_public.json
+uv run python3 src evaluate --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_code_public.json --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json
 ```
 
 **4. Generate answers for a dataset**
 
 ```bash
-uv run python3 src answer_dataset --student_search_results data/output/search_results/UnansweredQuestions/dataset_docs_public.json --save_directory data/output/search_results_and_answer/UnansweredQuestions
+uv run python3 src answer_dataset --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json --save_directory data/output/search_results_and_answer/UnansweredQuestions
 ```
 
 ### Single queries
@@ -107,6 +113,14 @@ uv run python3 src search "How do I enable LoRA adapters?" --k 5
 ```bash
 uv run python3 src answer "What activation formats does the fused batched MoE layer return in vLLM?" --k 5
 ```
+
+### Web interface (bonus)
+
+```bash
+uv run uvicorn src.server.server:app
+```
+
+Then open **http://localhost:8000** in your browser. Details in [Bonus: local web API and chat interface](#bonus-local-web-api-and-chat-interface).
 
 ### Makefile
 
@@ -132,7 +146,7 @@ make run ARGS='answer "What activation formats does the fused batched MoE layer 
 **Search**
 
 ```console
-$ uv run python3 src search "What activation formats does the fused batched MoE layer return in vLLM?" --k 3
+$ uv run python -m src search "What activation formats does the fused batched MoE layer return in vLLM?" --k 3
 {
   "file_path": "data/raw/vllm-0.10.1/vllm/model_executor/layers/fused_moe/cutlass_moe.py",
   "first_character_index": 23564,
@@ -144,7 +158,7 @@ $ uv run python3 src search "What activation formats does the fused batched MoE 
 **Search a dataset**
 
 ```console
-$ uv run python3 src search_dataset --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json --k 10 --save_directory data/output/search_results/UnansweredQuestions
+$ uv run python -m src search_dataset --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json --k 10 --save_directory data/output/search_results/UnansweredQuestions
 Searching dataset: 100%|██████████| 100/100 [00:00<00:00, ...]
 Saved student_search_results to data/output/search_results/UnansweredQuestions/dataset_docs_public.json
 ```
@@ -152,7 +166,7 @@ Saved student_search_results to data/output/search_results/UnansweredQuestions/d
 **Evaluate**
 
 ```console
-$ uv run python3 src evaluate --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json
+$ uv run python -m src evaluate --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json
 Evaluated 100 questions
 Recall@1: 0.630  Recall@3: 0.800  Recall@5: 0.820  Recall@10: 0.870
 ```
@@ -208,6 +222,13 @@ flowchart LR
         CTX --> GEN["Generator<br/>Qwen3-0.6B"]
         GEN --> OUT["Answer"]
     end
+
+    subgraph WEB["Bonus: web server"]
+        BR["Browser<br/>chat UI"] <-->|WebSocket /ws| SRV["FastAPI server"]
+    end
+
+    SRV --> Q
+    OUT --> SRV
 ```
 
 | Component | File | Responsibility |
@@ -217,10 +238,12 @@ flowchart LR
 | **Markdown chunker** | `src/markdown_indexing.py` | Splits Markdown and text files along headings |
 | **Tokenizer** | `src/tokenizer.py` | Turns any text into lowercase tokens, splits `snake_case` and `CamelCase` |
 | **Retriever** | `src/retriever.py` | Loads the BM25 index and the chunk list once, returns top-k sources |
-| **Generator** | `src/generator.py` | Loads Qwen once, builds the prompt, generates the answer |
+| **Generator** | `src/generator.py` | Loads Qwen once on the best available device, builds the prompt, generates the answer |
 | **Data models** | `src/models.py` | pydantic models exchanged between all stages |
+| **Web server** *(bonus)* | `src/server/server.py` | FastAPI app: WebSocket endpoint `/ws` + serves the chat interface |
+| **Chat interface** *(bonus)* | `frontend/` | HTML, CSS and plain JavaScript chat client |
 
-The retriever and the generator are separate on purpose: `search` and `search_dataset` never load the language model, so they stay fast.
+The retriever and the generator are separate on purpose: `search` and `search_dataset` never load the language model, so they stay fast. The web server reuses exactly the same two classes as the CLI, so both always behave the same way.
 
 ---
 
@@ -337,6 +360,14 @@ def activation_formats(self) -> tuple[...]:
 
 The system prompt tells the model to answer **only** from that context, to say so if the answer is missing, and not to retell the code. Qwen3's thinking mode is disabled (`enable_thinking=False`) so the answer is short and does not contain a `<think>` block.
 
+The model runs on the fastest available device and falls back to the CPU automatically:
+
+| Device | When | Precision |
+|---|---|---|
+| `cuda` | NVIDIA GPU available | float16 |
+| `mps` | Apple Silicon GPU available | float16 |
+| `cpu` | everything else, e.g. the campus machines | float32 |
+
 ---
 
 ## Performance analysis
@@ -390,7 +421,124 @@ Smaller chunks hurt, especially for code. A code question usually needs the whol
 |---|---|---|
 | Indexing the full corpus | 5 min | ~18 s |
 | Retrieval, 200 questions (excluding index loading) | 90 s | < 0.1 s |
-| Answer generation | — | several seconds per question on CPU |
+| Answer generation | — | a few seconds per question, depending on device |
+
+---
+
+## Bonus: local web API and chat interface
+
+The bonus **Local HTTP API** exposes querying the index and answering questions through a small local web server, so the system can be driven by something other than the CLI: a browser, a script or any other program that can open a WebSocket.
+
+![Chat interface](docs/chat-ui.png)
+
+### Start
+
+```bash
+uv run uvicorn src.server.server:app
+```
+
+Open **http://localhost:8000**. The page connects to the server automatically. For development, add `--reload` to restart the server on every code change:
+
+```bash
+uv run uvicorn src.server.server:app --reload
+```
+
+The retriever and the model are loaded **once** when the server starts (the `Loading weights` progress bar), not on every question.
+
+### How it works
+
+```mermaid
+sequenceDiagram
+    participant B as Browser (frontend/)
+    participant S as FastAPI server
+    participant R as Retriever (BM25)
+    participant G as Generator (Qwen)
+
+    B->>S: GET /  →  index.html, style.css, app.js
+    B->>S: open WebSocket /ws
+    B->>S: {"prompt": "answer", "query": "...", "k": 5}
+    S->>R: search(query, k)
+    R-->>S: top-k sources
+    S->>G: generate(context, query)  (in a worker thread)
+    G-->>S: answer
+    S-->>B: {"answer": "...", "sources": [...]}
+```
+
+| Route | Type | Purpose |
+|---|---|---|
+| `/` | HTTP (static files) | Serves the chat interface from `frontend/` |
+| `/ws` | WebSocket | Receives questions, returns answers and sources |
+
+### Message format
+
+Request:
+
+```json
+{"prompt": "answer", "query": "How do I enable LoRA adapters?", "k": 5}
+```
+
+Response:
+
+```json
+{
+  "answer": "To enable LoRA adapters, ...",
+  "sources": [
+    {
+      "file_path": "data/raw/vllm-0.10.1/docs/features/lora.md",
+      "first_character_index": 0,
+      "last_character_index": 1874
+    }
+  ]
+}
+```
+
+Invalid input never crashes the server or closes the connection. Instead it returns an error message:
+
+```json
+{"error": "Query must be a non-empty string."}
+```
+
+| Input | Response |
+|---|---|
+| Not valid JSON | `{"error": "Invalid JSON."}` |
+| Unknown `prompt` | `{"error": "Unknown prompt."}` |
+| Empty or missing `query` | `{"error": "Query must be a non-empty string."}` |
+| `k` ≤ 0 or not an integer | `{"error": "k must be a positive integer."}` |
+
+### Using the API without the browser
+
+The server is not tied to the web page. Any program can send questions, for example this one-liner:
+
+```bash
+uv run python -c "import asyncio, json, websockets
+async def main():
+    async with websockets.connect('ws://localhost:8000/ws') as ws:
+        await ws.send(json.dumps({'prompt': 'answer', 'query': 'How do I enable LoRA adapters?', 'k': 3}))
+        print(json.dumps(json.loads(await ws.recv()), indent=2))
+asyncio.run(main())"
+```
+
+### Chat interface features
+
+The frontend is plain HTML, CSS and JavaScript, no framework and no build step.
+
+- Chat layout in the style of local LLM interfaces, light and dark mode follow the system setting
+- **Live thinking timer** while the model is working (`Thinking… 3.4s`) and the total time above each answer (`Thought for 3.4s`)
+- Collapsible list of the **sources** under every answer, with file path and character range
+- Code blocks and inline code in answers are rendered; the model output is HTML-escaped first, so it can never inject HTML into the page
+- Connection status in the header, automatic reconnect with backoff if the server restarts
+- Enter sends, Shift+Enter adds a new line, suggestion buttons for a first question
+
+### Bonus design decisions
+
+| Decision | Why |
+|---|---|
+| **FastAPI** | Built on pydantic, so the existing models (`MinimalSource` ...) serialize directly |
+| **WebSocket instead of request/response** | One open connection for a whole chat session, the browser gets the answer the moment it is ready |
+| **Generation in a worker thread** (`asyncio.to_thread`) | Qwen blocks for several seconds. Running it in the event loop would freeze the server and the WebSocket could not answer its keep-alive pings, so the connection would drop in the middle of an answer |
+| **Server serves the frontend** | One command starts everything, no second web server needed. `/ws` is registered before the static mount so it is not shadowed |
+| **Same `Retriever` and `Generator` as the CLI** | No duplicated logic, CLI and web always give the same results |
+| **Device fallback** | Uses the GPU on Mac (`mps`) or NVIDIA (`cuda`) when available, but still runs on a CPU-only campus machine as required by the subject |
 
 ---
 
@@ -425,6 +573,9 @@ Smaller chunks hurt, especially for code. A code question usually needs the whol
 | **`make run` broke questions.** `make` drops quotes and treats `--k` as its own `--keep-going` option | Pass all arguments through one variable: `make run ARGS='...'` |
 | **The model was loaded for every question.** | A dedicated `Generator` class that loads Qwen once |
 | **Answers described the code instead of answering.** The question was not passed to the model, and only the last chunk reached the prompt | Collect all chunk texts, label them with their source, put the question after the context in a single user message |
+| **Web server returned `500 Internal Server Error`.** `create_app()` returned `None` because `return app` was indented inside the WebSocket handler | Moved `return app` and the static mount back to function level |
+| **WebSocket connections were rejected.** uvicorn had no WebSocket library installed | `uv add "uvicorn[standard]"`, which brings `websockets` |
+| **mypy errors from `transformers`.** Its type hints for `generate()` and `.to()` are wrong | The loaded model is typed as `Any`, which is the usual fix for incorrect third-party type hints |
 
 ---
 
@@ -436,6 +587,12 @@ RAG-against-the-machine/
 ├── README.md
 ├── pyproject.toml
 ├── uv.lock
+├── docs/
+│   └── chat-ui.png           # screenshot for this README
+├── frontend/                 # bonus: browser chat interface
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
 ├── src/
 │   ├── __init__.py
 │   ├── __main__.py           # CLI (Python Fire) + evaluation
@@ -444,7 +601,9 @@ RAG-against-the-machine/
 │   ├── markdown_indexing.py  # Markdown / text chunking
 │   ├── tokenizer.py          # tokenizer for BM25
 │   ├── retriever.py          # BM25 search
-│   └── generator.py          # Qwen answer generation
+│   ├── generator.py          # Qwen answer generation
+│   └── server/
+│       └── server.py         # bonus: FastAPI web server
 └── data/
     ├── raw/                  # vLLM repository (not committed)
     ├── processed/            # index created by `index` (not committed)
@@ -469,17 +628,19 @@ RAG-against-the-machine/
 - [Qwen3-0.6B model card](https://huggingface.co/Qwen/Qwen3-0.6B)
 - [Hugging Face Transformers: text generation](https://huggingface.co/docs/transformers/main/en/llm_tutorial)
 - [pydantic documentation](https://docs.pydantic.dev/)
-- [Python Fire](https://github.com/google/python-fire), [tqdm](https://tqdm.github.io/), [uv](https://docs.astral.sh/uv/)
+- [FastAPI: WebSockets](https://fastapi.tiangolo.com/advanced/websockets/) and [static files](https://fastapi.tiangolo.com/tutorial/static-files/)
+- [MDN: The WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+- [Python Fire](https://github.com/google/python-fire), [tqdm](https://tqdm.github.io/), [uv](https://docs.astral.sh/uv/), [uvicorn](https://www.uvicorn.org/)
 
 ### Use of AI
 
 Claude (Anthropic) was used throughout the project as a tutor and reviewer, not as a code generator for whole components. Concretely:
 
-- **Understanding concepts:** explanations of RAG, BM25, IoU, recall@k, the `ast` module, regular expressions for `CamelCase` splitting and how chat templates work for Qwen.
+- **Understanding concepts:** explanations of RAG, BM25, IoU, recall@k, the `ast` module, regular expressions for `CamelCase` splitting, how chat templates work for Qwen, and the difference between REST, WebSockets and other API styles.
 - **Planning:** breaking the project into small steps (line offsets → units → packing → oversized units → indexer → tokenizer → BM25 → search → evaluate → answer).
-- **Code review and debugging:** finding bugs such as an infinite loop, a `return` inside a loop, absolute file paths, duplicate tokens and a wrong IoU union, and explaining why they happened.
+- **Code review and debugging:** finding bugs such as an infinite loop, a `return` inside a loop, absolute file paths, duplicate tokens, a wrong IoU union and a wrongly indented `return app` in the web server, and explaining why they happened.
 - **Unit tests:** most of the pytest tests for the chunking functions were written with AI help and used to verify my own implementations.
-- **Code snippets:** some smaller parts were written with AI assistance and then reviewed and integrated by me, mainly the line splitter, the `evaluate` logic and the `Generator` class.
-- **Measurements and documentation:** running the chunk-size comparison and drafting this README.
+- **Bonus frontend:** the CSS of the chat interface were written with AI assistance based on my design requirements (layout, header), then reviewed and adjusted by me.
+- **Documentation:** Drafting this README.
 
 Every piece of AI-assisted code was read, tested and adapted until I could explain it.
